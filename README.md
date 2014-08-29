@@ -57,3 +57,9 @@ JPEGs with quality of 80, starting from the 6th second & ending in the 8th secon
 ```
 mplayer -vo jpeg:quality=80 -nosound -ss 6 -endpos 8 vid.mp4
 ```
+License
+-------
+GoAniGiffy code is licensed under the [Apache v2.0](https://github.com/srinathh/goanigiffy/blob/master/LICENSE) license.
+
+All other media files & documentation in the repository is licened under <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+
