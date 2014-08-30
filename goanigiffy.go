@@ -13,6 +13,36 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
+/*
+GoAniGiffy is a utility for converting a set of alphabetically sorted images such as video frames
+grabbed from VLC or MPlayer into an animated GIF with options to Crop, Resize, Rotate & Flip the
+images prior to creating the GIF
+
+GoAniGiffy performs image operations in the order of cropping, scaling, rotating & flipping
+before converting the images into an Animated GIF. Image manipulation is done using
+Grigory Dryapak's imaging package. We use the Lanczos filter in Resizing and the default
+Floyd-Steinberg dithering used by Go Language's image/gif package to ensure video quality.
+Arbitrary angle rotations are not supported.
+
+The -delay parameter must be an integer specifying delay between frames in hundredths of
+a second. A value of 3 would give approximately 33 fps theoritically
+
+Usage of goanigiffy:
+  -cropheight=-1: height of cropped image, -1 specified full height
+  -cropleft=0: left co-ordinate for crop to start
+  -croptop=0: top co-ordinate for crop to start
+  -cropwidth=-1: width of cropped image, -1 specifies full width
+  -delay=3: delay time between frame in hundredths of a second
+  -dest="movie.gif": a destination filename for the animated gif
+  -flip="none": valid falues are none, horizontal, vertical
+  -rotate=0: valid values are 0, 90, 180, 270
+  -scale=1: scaling factor to apply if any
+  -src="*.jpg": a glob pattern for source images. defaults to *.jpg
+  -verbose=false: show in-process messages
+
+Sources: https://github.com/srinathh/goanigiffy
+*/
 package main
 
 import (
@@ -30,6 +60,70 @@ import (
 
 	"github.com/disintegration/imaging"
 )
+
+func CropImage(cropleft, croptop, cropwidth, cropheight int, img image.Image, verbose bool) image.Image {
+	//Crop operation. Ignore if there is no crop operation specified
+	if !(cropwidth == -1 && cropheight == -1 && cropleft == 0 && croptop == 0) {
+		if cropwidth == -1 {
+			cropwidth = img.Bounds().Dx()
+		}
+		if cropheight == -1 {
+			cropheight = img.Bounds().Dy()
+		}
+		if verbose {
+			log.Printf("Cropping original image at (%d,%d)->(%d,%d)", cropleft, croptop, cropleft+cropwidth-1, croptop+cropheight-1)
+		}
+		img = imaging.Crop(img, image.Rect(cropleft, croptop, cropleft+cropwidth-1, croptop+cropheight-1))
+	}
+	return img
+}
+
+func ScaleImage(scale float64, img image.Image, verbose bool) image.Image {
+	//Scale operation. Ignore if scale is 1.0
+	if scale != 1.0 {
+		newwidth := int(float64(img.Bounds().Dx()) * scale)
+		newheight := int(float64(img.Bounds().Dy()) * scale)
+
+		if verbose {
+			log.Printf("Scaling image from (%d, %d) -> (%d, %d)", img.Bounds().Dx(), img.Bounds().Dy(), newwidth, newheight)
+		}
+		img = imaging.Resize(img, newwidth, newheight, imaging.Lanczos)
+	}
+	return img
+
+}
+
+func RotateImage(rotate int, img image.Image, verbose bool) image.Image {
+	//Rotate operation. Ignore if rotate is 0
+	if rotate != 0 && verbose {
+		log.Printf("Rotating by %d", rotate)
+	}
+	switch rotate {
+	case 90:
+		img = imaging.Rotate90(img)
+	case 180:
+		img = imaging.Rotate180(img)
+	case 270:
+		img = imaging.Rotate270(img)
+	}
+	return img
+}
+
+//FlipImage takes a string
+func FlipImage(flip string, img image.Image, verbose bool) image.Image {
+	//Flip operation
+	if flip != "none" && verbose {
+		log.Printf("Flipping %s", flip)
+	}
+
+	switch flip {
+	case "horizontal":
+		img = imaging.FlipH(img)
+	case "vertical":
+		img = imaging.FlipV(img)
+	}
+	return img
+}
 
 func main() {
 
@@ -66,6 +160,10 @@ func main() {
 		log.Fatalf("Error in globbing source file pattern %s : %s", *srcglob, err)
 	}
 
+	if len(srcfilenames) == 0 {
+		log.Fatalf("No source images found via pattern %s", *srcglob)
+	}
+
 	if *verbose {
 		log.Printf("Found %d images to parse", len(srcfilenames))
 	}
@@ -85,56 +183,10 @@ func main() {
 			log.Printf("Parsing image %d of %d : %s", ctr, len(srcfilenames), filename)
 		}
 
-		//Crop operation. Ignore if there is no crop operation specified
-		if !(*cropwidth == -1 && *cropheight == -1 && *cropleft == 0 && *croptop == 0) {
-			if *cropwidth == -1 {
-				*cropwidth = img.Bounds().Dx()
-			}
-			if *cropheight == -1 {
-				*cropheight = img.Bounds().Dy()
-			}
-			if *verbose {
-				log.Printf("Cropping original image at (%d,%d)->(%d,%d)", *cropleft, *croptop, *cropleft+*cropwidth-1, *croptop+*cropheight-1)
-			}
-			img = imaging.Crop(img, image.Rect(*cropleft, *croptop, *cropleft+*cropwidth-1, *croptop+*cropheight-1))
-
-		}
-
-		//Scale operation. Ignore if scale is 1.0
-		if *scale != 1.0 {
-			newwidth := int(float64(img.Bounds().Dx()) * *scale)
-			newheight := int(float64(img.Bounds().Dy()) * *scale)
-
-			if *verbose {
-				log.Printf("Scaling image from (%d, %d) -> (%d, %d)", img.Bounds().Dx(), img.Bounds().Dy(), newwidth, newheight)
-			}
-			img = imaging.Resize(img, newwidth, newheight, imaging.Lanczos)
-		}
-
-		//Rotate operation. Ignore if rotate is 0
-		if *rotate != 0 && *verbose {
-			log.Printf("Rotating by %d", *rotate)
-		}
-		switch *rotate {
-		case 90:
-			img = imaging.Rotate90(img)
-		case 180:
-			img = imaging.Rotate180(img)
-		case 270:
-			img = imaging.Rotate270(img)
-		}
-
-		//Flip operation
-		if *flip != "none" && *verbose {
-			log.Printf("Flipping %s", *flip)
-		}
-
-		switch *flip {
-		case "horizontal":
-			img = imaging.FlipH(img)
-		case "vertical":
-			img = imaging.FlipV(img)
-		}
+		img = CropImage(*cropleft, *croptop, *cropwidth, *cropheight, img, *verbose)
+		img = ScaleImage(*scale, img, *verbose)
+		img = RotateImage(*rotate, img, *verbose)
+		img = FlipImage(*flip, img, *verbose)
 
 		buf := bytes.Buffer{}
 		if err := gif.Encode(&buf, img, nil); err != nil {
