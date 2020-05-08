@@ -216,7 +216,7 @@ func main() {
 		log.Fatalf("Error creating the destination file %s : %s", *destname, err)
 	}
 
-	if err := gif.EncodeAll(opfile, &gif.GIF{frames, delays, 0}); err != nil {
+	if err := gif.EncodeAll(opfile, &gif.GIF{Image: frames, Delay: delays, LoopCount: 0}); err != nil {
 		log.Printf("Error encoding output into animated gif :%s", err)
 	}
 	opfile.Close()
